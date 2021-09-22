@@ -1,0 +1,3 @@
+[build]
+# 相当于 cargo build --target xxxx，用于交叉编译
+target = "riscv64gc-unknown-none-elf"
