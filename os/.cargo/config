@@ -1,3 +1,9 @@
 [build]
 # 相当于 cargo build --target xxxx，用于交叉编译
 target = "riscv64gc-unknown-none-elf"
+
+[target.riscv64gc-unknown-none-elf]
+rustflags=[
+    "-Clink-arg=-Tsrc/linker.ld", # 指定链接器使用的脚本
+    "-Cforce-frame-pointers=yes"
+]

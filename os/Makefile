@@ -1,11 +1,49 @@
-DOCKER_NAME = target/riscv64gc-unknown-none-elf/debug/os
-.PHONY: run .os disasm
+TARGET := riscv64gc-unknown-none-elf
+MODE := release
 
-run: .os
-	qemu-riscv64 ${DOCKER_NAME}
+OUTPUT_DIR := target/$(TARGET)/$(MODE)
+KERNEL_ELF := $(OUTPUT_DIR)/os
+KERNEL_BIN := $(KERNEL_ELF).bin
+DISASM_TMP := $(OUTPUT_DIR)/asm
 
-.os: ${DOCKER_NAME}
-	cargo build
+BOARD ?= qemu
+SBI ?= rustsbi
+BOOTLOADER := ../bootloader/$(SBI)-$(BOARD).bin
 
-disasm:
-	rust-objdump -S ${DOCKER_NAME}
+# Kernel entry
+ifeq ($(BOARD),qemu)
+	KERNEL_ENTRY_PA := 0x80200000
+endif
+
+# binutils
+OBJDUMP := rust-objdump --arch-name=riscv64
+OBJCOPY := rust-objcopy --binary-architecture=riscv64
+
+build: $(KERNEL_BIN)
+
+$(KERNEL_BIN): kernel
+	$(OBJCOPY) $(KERNEL_ELF) --strip-all -O binary $@
+
+kernel: 
+	@echo Platform: $(BOARD)
+	@cp src/linker-$(BOARD).ld src/linker.ld
+	cargo build --release
+	@rm src/linker.ld
+
+clean:
+	cargo clean
+
+disasm: kernel
+	$(OBJDUMP) -x $(KERNEL_ELF) | less
+
+run: build
+ifeq ($(BOARD),qemu)
+	qemu-system-riscv64 \
+		-machine virt \
+		-nographic \
+		-bios $(BOOTLOADER) \
+		-device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA)
+endif
+
+
+.PHONY: build run disasm clean kernel

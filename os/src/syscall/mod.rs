@@ -7,6 +7,7 @@ pub use sysfunc::*;
 
 pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     let mut ret: isize;
+    // 此时处于用户特权级
     unsafe {
         llvm_asm!("ecall"
             : "={x10}" (ret)
