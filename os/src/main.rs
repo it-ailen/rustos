@@ -19,11 +19,13 @@
 
 // use sbi::{SBI_SHUTDOWN, sbi_call};
 // use syscall::sys_exit; //
-#[macro_use]
 mod lang_items;
-// mod syscall;
-mod std;
+mod syscall;
 mod sbi;
+mod batch;
+mod trap;
+#[macro_use]
+mod console;
 
 
 // fn shutdown() -> ! {
@@ -34,6 +36,9 @@ mod sbi;
 // include_str! 将同目录下的汇编转化为字符串
 // global_asm! 将汇编字符串嵌入代码中
 global_asm!(include_str!("entry.asm"));
+
+// 引入应用
+global_asm!(include_str!("link_app.S"));
 
 /// bss 段需要清零才能正常使用，一般应用的 bss 会由操作系统负责清零，但操作系统自身则需要自己处理
 fn clear_bss() {
@@ -47,6 +52,11 @@ fn clear_bss() {
             (a as *mut u8).write_volatile(0);
         }
     })
+}
+
+pub fn init() {
+    extern "C" {
+    }
 }
 
 
@@ -66,7 +76,6 @@ pub fn rust_main() -> ! {
         fn boot_stack_top();
     }
     clear_bss();
-    println!("Hello, world!");
     println!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
     println!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
     println!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
@@ -75,5 +84,9 @@ pub fn rust_main() -> ! {
         boot_stack as usize, boot_stack_top as usize
     );
     println!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
-    panic!("Shutdown machine!");
+    // panic!("Shutdown machine!");
+    println!("[kernel] Hello, world!");
+    trap::init();
+    batch::init();
+    batch::run_next_app();
 }
