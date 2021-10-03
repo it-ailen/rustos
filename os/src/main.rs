@@ -19,13 +19,16 @@
 
 // use sbi::{SBI_SHUTDOWN, sbi_call};
 // use syscall::sys_exit; //
-mod lang_items;
-mod syscall;
-mod sbi;
-mod batch;
-mod trap;
+
 #[macro_use]
 mod console;
+mod lang_items;
+mod sbi;
+mod syscall;
+mod trap;
+mod loader;
+mod config;
+mod task;
 
 
 // fn shutdown() -> ! {
@@ -52,11 +55,6 @@ fn clear_bss() {
             (a as *mut u8).write_volatile(0);
         }
     })
-}
-
-pub fn init() {
-    extern "C" {
-    }
 }
 
 
@@ -87,6 +85,9 @@ pub fn rust_main() -> ! {
     // panic!("Shutdown machine!");
     println!("[kernel] Hello, world!");
     trap::init();
-    batch::init();
-    batch::run_next_app();
+    // batch::init();
+    // batch::run_next_app();
+    loader::load_apps();
+    task::run_first_task();
+    panic!("Unreachable in rust_main!");
 }

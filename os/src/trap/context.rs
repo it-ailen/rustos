@@ -1,4 +1,4 @@
-use riscv::register::sstatus::{self, SPP, Sstatus};
+use riscv::register::sstatus::{self, Sstatus, SPP};
 
 /// Trap 时需要保存的执行上下文
 pub struct TrapContext {
@@ -6,7 +6,7 @@ pub struct TrapContext {
     pub x: [usize; 32],
     /// sstatus 寄存器
     pub sstatus: Sstatus,
-    pub spec: usize,
+    pub sepc: usize,
 }
 
 impl TrapContext {
@@ -21,7 +21,7 @@ impl TrapContext {
         let mut cx = Self {
             x: [0; 32],
             sstatus,
-            spec: entry,
+            sepc: entry,
         };
         cx.set_sp(sp);
         cx
