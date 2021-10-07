@@ -1,5 +1,6 @@
 // bootloader/rustsbi-qemu.bin 直接添加的SBI规范实现的二进制代码，给操作系统提供基本支持服务
 
+const SBI_SET_TIMER: usize = 0;
 const SBI_CONSOLE_PUTCHAR: usize = 1;
 const SBI_CONSOLE_GETCHAR: usize = 2;
 pub(crate) const SBI_SHUTDOWN: usize = 8;
@@ -27,4 +28,9 @@ pub fn shutdown() -> ! {
 
 pub fn console_putchar(c: usize) {
     sbi_call(SBI_CONSOLE_PUTCHAR, c, 0, 0);
+}
+
+/// 设置 mtimecpy 寄存器，当计时器 mtime >= mtimecpy 时，会触发时钟中断
+pub fn set_timer(timer: usize) {
+    sbi_call(SBI_SET_TIMER, timer, 0, 0);
 }

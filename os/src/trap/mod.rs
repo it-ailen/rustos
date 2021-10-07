@@ -1,11 +1,7 @@
 mod context;
 
-use crate::syscall::syscall;
-use riscv::register::{
-    mtvec::TrapMode,
-    scause::{self, Exception, Trap},
-    stval, stvec,
-};
+use crate::{syscall::syscall, task::suspend_current_and_run_next, timer::set_next_trigger};
+use riscv::register::{mtvec::TrapMode, scause::{self, Exception, Interrupt, Trap}, sie, stval, stvec};
 
 global_asm!(include_str!("trap.S"));
 
@@ -16,6 +12,10 @@ pub fn init() {
     unsafe {
         stvec::write(__alltraps as usize, TrapMode::Direct);
     }
+}
+
+pub fn enable_timer_interrupt() {
+    unsafe { sie::set_stimer(); }
 }
 
 /// cx 传入与返回值一样， trap_handler 需要保证它的值不发生变化
@@ -40,6 +40,11 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             println!("[kernel] IllegalInstruction in application, core dumped.");
             panic!("[kernel] Cannot continue!");
             //run_next_app();
+        }
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            set_next_trigger();
+            println!("[kernel] timer comes and switch tasks.");
+            suspend_current_and_run_next();
         }
         _ => {
             panic!(

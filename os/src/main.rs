@@ -29,6 +29,7 @@ mod trap;
 mod loader;
 mod config;
 mod task;
+mod timer;
 
 
 // fn shutdown() -> ! {
@@ -88,6 +89,8 @@ pub fn rust_main() -> ! {
     // batch::init();
     // batch::run_next_app();
     loader::load_apps();
+    trap::enable_timer_interrupt();
+    timer::set_next_trigger();
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }
