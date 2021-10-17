@@ -9,3 +9,7 @@ edition = "2018"
 [dependencies]
 riscv = { git = "https://github.com/rcore-os/riscv", features = ["inline-asm"] }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+buddy_system_allocator = "0.6" # 现成的伙伴算法库
+spin = "0.7.0" # 提供非 std 环境下的 mutex 等工具
+bitflags = "1.2.1" # 位操作
+xmas-elf = "0.7.0" # elf 解析

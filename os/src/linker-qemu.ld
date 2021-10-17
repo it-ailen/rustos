@@ -10,6 +10,10 @@ SECTIONS /* 使用链接脚本配置内存布局，而不使用默认布局 */
     stext = .;
     .text : { /* 代码段，列表。冒号前表示段名。花括号内按照放置顺序描述将所有输入目标文件的哪些段放在这个段中 */
         *(.text.entry)
+        . = ALIGN(4K);
+        strampoline = .;
+        *(.text.trampoline);
+        . = ALIGN(4K);
         *(.text .text.*) /* 表示将目标文件的 .text 段放到各 .text.* 的位置 */
     }
     . = ALIGN(4K); /* 按页对齐 */
@@ -29,10 +33,12 @@ SECTIONS /* 使用链接脚本配置内存布局，而不使用默认布局 */
     . = ALIGN(4K);
     edata = .;
 
+    sbss_with_stack = .;
     .bss : {
         *(.bss.stack)
         sbss = .;
         *(.bss .bss.*)
+        *(.sbss .sbss.*)
     }
 
     . = ALIGN(4K);

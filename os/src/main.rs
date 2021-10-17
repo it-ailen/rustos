@@ -16,9 +16,16 @@
 //!   panic! 时，获取其中的信息并打印
 #![feature(panic_info_message)] // 通过 PanicInfo::message 获取报错信息
 
+// 处理分配动态内存失败的情况
+#![feature(alloc_error_handler)]
 
+// Rust 内置的 alloc 包，用于管理堆内存分配。主要是提供一个 GlobalAlloc Trait
+extern crate alloc; 
 // use sbi::{SBI_SHUTDOWN, sbi_call};
 // use syscall::sys_exit; //
+
+#[macro_use]
+extern crate bitflags;
 
 #[macro_use]
 mod console;
@@ -30,6 +37,8 @@ mod loader;
 mod config;
 mod task;
 mod timer;
+mod mm;
+mod layout;
 
 
 // fn shutdown() -> ! {
@@ -85,12 +94,16 @@ pub fn rust_main() -> ! {
     println!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
     // panic!("Shutdown machine!");
     println!("[kernel] Hello, world!");
+    mm::init();
+    println!("[kernel] mm initilized");
+    println!("[kernel] remap test");
+    mm::remap_test();
     trap::init();
-    // batch::init();
-    // batch::run_next_app();
-    loader::load_apps();
+    println!("[kernel] trap init");
     trap::enable_timer_interrupt();
+    println!("[kernel] timer interrupt enabled");
     timer::set_next_trigger();
+    println!("[kernel] set first trigger");
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

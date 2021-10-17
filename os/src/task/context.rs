@@ -1,3 +1,5 @@
+use crate::trap::trap_return;
+
 
 
 #[repr(C)] // 按 C 语言方式对齐，这样可以在汇编中直接使用，rust 默认会按最省内存的方式重排属性
@@ -13,6 +15,14 @@ impl TaskContext {
         extern "C" { fn __restore(); }
         Self {
             ra: __restore as usize,
+            s: [0; 12],
+        }
+    }
+
+    /// 
+    pub fn goto_trap_return() -> Self {
+        Self {
+            ra: trap_return as usize,
             s: [0; 12],
         }
     }
