@@ -40,6 +40,13 @@ _num_app:
         writeln!(f, r#"    .quad app_{}_start"#, i)?;
     }
     writeln!(f, r#"    .quad app_{}_end"#, apps.len() - 1)?;
+    writeln!(f, r#"
+    .global _app_names
+_app_names:"#)?;
+    writeln!(f, r#"    # 链接器会自动在每个字符串的结尾加入分隔符 \0"#)?;
+    for app in apps.iter() {
+        writeln!(f, r#"    .string "{}""#, app)?;
+    }
     for (idx, app) in apps.iter().enumerate() {
         println!("app_{}: {}", idx, app);
         writeln!(

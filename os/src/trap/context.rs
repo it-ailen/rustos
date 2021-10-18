@@ -2,7 +2,8 @@ use riscv::register::sstatus::{self, Sstatus, SPP};
 
 use super::trap_handler;
 
-/// Trap 时需要保存的执行上下文
+/// Trap 时需要保存的执行上下文(用户空间才需要，因为只有U模式下才有陷入，S模式下的陷入
+/// 被屏蔽了)
 pub struct TrapContext {
     /// x0~x31，32个通用寄存器
     pub x: [usize; 32],
@@ -26,8 +27,8 @@ impl TrapContext {
         self.x[2] = sp;
     }
 
-    /// 初始化 TrapContext
-    /// entry: 要执行的应用程序入口地址
+    /// 初始化应用空间的 TrapContext。并设置在 trap 返回时 CPU 恢复到 User 模式
+    /// entry: 要执行的应用程序入口地址，设置为初始的 sepc，这样在 trap_return 时就能从入口开始运行
     /// sp: 应用的栈顶
     pub fn app_init_context(
         entry: usize,
@@ -37,11 +38,12 @@ impl TrapContext {
         trap_handler: usize,
     ) -> Self {
         let mut sstatus = sstatus::read();
+        // set CPU privilege to User after trapping back
         sstatus.set_spp(SPP::User);
         let mut cx = Self {
             x: [0; 32],
             sstatus,
-            sepc: entry,
+            sepc: entry, // 初始时，设置 sepc 为程序入口地址。这是由于在此进程被换入运行时，是从 trap 恢复
             kernel_satp,
             kernel_sp,
             trap_handler,

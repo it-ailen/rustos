@@ -1,14 +1,6 @@
 mod context;
 
-use crate::{
-    config::{TRAMPOLINE, TRAP_CONTEXT},
-    syscall::syscall,
-    task::{
-        current_trap_cx, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next,
-    },
-    timer::set_next_trigger,
-};
+use crate::{config::{TRAMPOLINE, TRAP_CONTEXT}, syscall::syscall, task::{current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next}, timer::set_next_trigger};
 use riscv::register::{
     mtvec::TrapMode,
     scause::{self, Exception, Interrupt, Trap},
@@ -51,26 +43,36 @@ fn set_kernel_trap_entry() {
 #[no_mangle]
 pub fn trap_handler() -> ! {
     set_kernel_trap_entry();
-    // 应用的 Trap 上下文不在内核地址空间，故需要调用此方法来得到 trapContext
-    let cx = current_trap_cx();
     let scause = scause::read();
     let stval = stval::read();
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
+            let mut cx = current_trap_cx();
             // 来自 U 特权级的 environment call(ecall)，即系统调用
             cx.sepc += 4; // spec 在 trap 时，会被修改为 trap 前的最后一条指令，这里+4是让它指向下一条指令
                           // a0 = syscall(a7, a0, a1, a2)，系统调用规定的寄存器
-            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+            let result = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]);
+            // 经过可能的 sys_exec 后，当前任务已发生变化，所以需要重新加载 cx
+            cx = current_trap_cx();
+            cx.x[10] = result as usize;
         }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
-            println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
-            panic!("[kernel] Cannot continue!");
-            exit_current_and_run_next();
+        Trap::Exception(Exception::StoreFault) | 
+        Trap::Exception(Exception::StorePageFault) |
+        Trap::Exception(Exception::InstructionFault) |
+        Trap::Exception(Exception::InstructionPageFault) |
+        Trap::Exception(Exception::LoadFault) |
+        Trap::Exception(Exception::LoadPageFault) => {
+            println!(
+                "[kernel] {:?} in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.",
+                scause.cause(),
+                stval,
+                current_trap_cx().sepc,
+            );;
+            exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             println!("[kernel] IllegalInstruction in application, core dumped.");
-            panic!("[kernel] Cannot continue!");
-            exit_current_and_run_next();
+            exit_current_and_run_next(-3);
             //run_next_app();
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {

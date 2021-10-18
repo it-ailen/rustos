@@ -2,8 +2,26 @@
 #![feature(linkage)]
 #![feature(llvm_asm)]
 #![feature(panic_info_message)] // 使用 panic message，有这个 panic_handler 才能起作用
+#![feature(alloc_error_handler)]
 
+use buddy_system_allocator::LockedHeap;
 use syscall::*;
+
+/// 用户堆空间大小
+const USER_HEAP_SIZE: usize = 16384;
+
+/// 使用编译好的数组作为用户空间的堆
+static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
+
+/// 全局分配器，内核和用户空间各一个
+#[global_allocator]
+static HEAP: LockedHeap = LockedHeap::empty();
+
+/// 必须要指定全局分配出错时的 handler
+#[alloc_error_handler]
+pub fn handle_alloc_error(layout: core::alloc::Layout) -> ! {
+    panic!("Heap allocation error, layout = {:?}", layout);
+}
 
 mod syscall;
 #[macro_use] // 使 console 中定义的宏能被此 crate 外使用，比如 bin 下面的各应用
@@ -13,7 +31,12 @@ mod lang_items;
 #[no_mangle] // 不允许编译器混淆
 #[link_section = ".text.entry"] // 告知编译器将此函数放到 .text.entry 节，成为用户程序入口
 pub extern "C" fn _start() -> ! {
-    clear_bss(); // 系统还不具有清零 .bss 的能力，需要应用程序自己做
+    // 操作系统负责初始化用户程序的 .bss 区间
+    // clear_bss(); // 系统还不具有清零 .bss 的能力，需要应用程序自己做
+    unsafe {
+        HEAP.lock()
+            .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
+    }
     println!("user lib run now!!!");
     exit(main()); // 调用用户库的 exit 方法
     panic!("unreachable after sys_exit!");
@@ -51,4 +74,54 @@ pub fn yield_() -> isize {
 
 pub fn get_time() -> isize {
     sys_get_time()
+}
+
+/// 等待任意子进程退出
+pub fn wait(exit_code: &mut i32) -> isize {
+    loop {
+        match sys_waitpid(-1, exit_code) {
+            -2 => {
+                // 如果返回 -2， 表示有子进程但进程未结束
+                yield_(); // 主动释放 CPU
+            }
+            exit_pid => return exit_pid, // 结束的子进程 ID
+        }
+    }
+}
+
+/// 等待指定子进程退出。
+pub fn waitpid(pid: usize, exit_code: &mut i32) -> isize {
+    loop {
+        match sys_waitpid(pid as isize, exit_code) {
+            -2 => {
+                sys_yield();
+            }
+            exit_pid => return exit_pid,
+        }
+    }
+}
+
+pub fn sleep(period_ms: usize) {
+    let start = sys_get_time();
+    while sys_get_time() < start + period_ms as isize {
+        sys_yield();
+    }
+}
+
+/// fork 一个新进程。返回 0 表示子进程，>0 表示父进程。
+pub fn fork() -> isize {
+    sys_fork()
+}
+
+/// 从文件中读取数据
+pub fn read(fd: usize, buf: &mut [u8]) -> isize {
+    sys_read(fd, buf)
+}
+
+pub fn exec(path: &str) -> isize {
+    sys_exec(path)
+}
+
+pub fn getpid() -> isize {
+    sys_getpid()
 }

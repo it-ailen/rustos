@@ -19,7 +19,10 @@ impl TaskContext {
         }
     }
 
-    /// 
+    /// 返回 ra 为 trap_return 的任务上下文。
+    /// trap_return 为用户空间的陷入返回函数。
+    /// 在地址空间模式下，用户程序发生的任何“trap”返回时都是通过 trap_return 返回到用户空间的,
+    /// 所以以 trap_return 为陷入后返回的统一入口。
     pub fn goto_trap_return() -> Self {
         Self {
             ra: trap_return as usize,

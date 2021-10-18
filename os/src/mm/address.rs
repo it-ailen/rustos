@@ -100,6 +100,13 @@ impl PhysAddr {
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
     }
+
+    /// 获取可变指针
+    pub fn get_mut<T>(&self) -> &'static mut T {
+        unsafe {
+            (self.0 as *mut T).as_mut().unwrap()
+        }
+    }
 }
 
 impl PhysPageNum {
@@ -143,6 +150,12 @@ impl From<usize> for PhysAddr {
 impl From<usize> for VirtAddr {
     fn from(v: usize) -> Self {
         Self(v)
+    }
+}
+
+impl From<PhysAddr> for usize {
+    fn from(v: PhysAddr) -> Self {
+        v.0
     }
 }
 

@@ -24,7 +24,7 @@
 __switch:
     # 栈向下生长，此处分配出一个 TaskContext 的空间(13*8)
     addi sp, sp, -13*8 # 注意，这里的 SP 是当前任务的 SP，即保存任务的 TaskContext 是在任务自己的栈内分配的
-    sd sp, 0(a0) # 将 sp（当前 TaskContext 的地址）写到 a0 指向的地址中，a0 传入的是当前任务上下文的指针
+    sd sp, 0(a0) # a0[0] = sp，这句可以解释为啥入参是二维指针
     sd ra, 0(sp) # 将 ra(当前返回地址) 写到 sp 指向的地址，即刚刚分配的 TaskContext 的 ra 域
     
     .set n, 0

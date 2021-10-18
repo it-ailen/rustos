@@ -98,12 +98,14 @@ pub fn rust_main() -> ! {
     println!("[kernel] mm initilized");
     println!("[kernel] remap test");
     mm::remap_test();
+    task::add_initproc();
     trap::init();
     println!("[kernel] trap init");
     trap::enable_timer_interrupt();
     println!("[kernel] timer interrupt enabled");
     timer::set_next_trigger();
+    loader::list_apps();
     println!("[kernel] set first trigger");
-    task::run_first_task();
+    task::run_tasks();
     panic!("Unreachable in rust_main!");
 }

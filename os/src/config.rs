@@ -15,7 +15,7 @@ pub const PAGE_SIZE: usize = 0x1000;
 pub const PAGE_SIZE_BITS: usize = 0xc;
 
 /// 内核堆大小
-pub const KERNEL_HEAP_SIZE: usize = 0x30_0000;
+pub const KERNEL_HEAP_SIZE: usize = 0x20_0000;
 /// 物理内存上限，后面应该使用设备查询获取
 pub const MEMORY_END: usize = 0x80800000;
 

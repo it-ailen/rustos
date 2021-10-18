@@ -1,7 +1,8 @@
-use alloc::vec;
+use alloc::{string::String, vec};
 use alloc::vec::Vec;
 use bitflags::*;
 
+use super::PhysAddr;
 use super::{
     address::{PhysPageNum, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
@@ -134,6 +135,7 @@ impl PageTable {
     }
 
     /// 查找 pte，不负责页表项的分配。即如果页表项未分配过，则返回 None
+    /// 从内核视角查找，利用恒等映射完成。
     fn find_pte(&self, vpn: VirtPageNum) -> Option<&PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
@@ -154,8 +156,8 @@ impl PageTable {
 
     /// 在任务页表中建立虚拟页号到物理页号间的映射(最终会被 MMU 消费)
     /// 这里的 ppn 是最终数据页，页表组织树的中间结点在 find_pte_create 中完成
-    #[allow(unused)]
     pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+        // println!("PageTable.map: {:?} => {:?}, flags: {:?}", vpn, ppn, flags);
         let pte = self.find_pte_create(vpn).unwrap();
         assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
@@ -171,6 +173,17 @@ impl PageTable {
     /// 转换虚拟页号对应的页表项。
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.find_pte(vpn).map(|pte| pte.clone())
+    }
+
+    /// 通过当前页表，翻译虚拟地址到物理地址的映射(注意：是从内核视角，走恒等映射得到数据)
+    pub fn translate_va(&self, va: VirtAddr) -> Option<PhysAddr> {
+        self.find_pte(va.clone().floor())
+            .map(|pte| {
+                let aligned_pa: PhysAddr = pte.ppn().into();
+                let offset = va.page_offset();
+                let aligned_pa_usize: usize = aligned_pa.into();
+                (aligned_pa_usize + offset).into()
+            })
     }
 }
 
@@ -200,4 +213,29 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         start = end_va.into();
     }
     v
+}
+
+/// 通过 token 指向的地址空间页表，读取 ptr 所指向的字符串
+pub fn translated_str(token: usize, ptr: *const u8) -> String {
+    let page_table = PageTable::from_token(token);
+    let mut string = String::new();
+    let mut va = ptr as usize;
+    loop {
+        let ch: u8 = *(page_table.translate_va(VirtAddr::from(va)).unwrap().get_mut());
+        if ch == 0 {
+            // 以 \0 结尾
+            break;
+        } else {
+            string.push(ch as char);
+            va += 1;
+        }
+    }
+    string
+}
+
+/// 通过 token 指向的地址空间页表，读取 ptr 所指向的T指针
+pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
+    let page_table = PageTable::from_token(token);
+    let va = ptr as usize;
+    page_table.translate_va(VirtAddr::from(va)).unwrap().get_mut()
 }

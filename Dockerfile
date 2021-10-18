@@ -12,3 +12,5 @@ RUN export PATH=$PATH:/root/.cargo/bin \
       && rustup target add riscv64gc-unknown-none-elf \
       && cargo install cargo-binutils \
       && rustup component add llvm-tools-preview
+
+ADD ./dockerbin/* /usr/bin/

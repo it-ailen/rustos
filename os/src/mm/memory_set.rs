@@ -4,7 +4,10 @@ use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use riscv::register::satp;
 use spin::Mutex;
 
-use crate::{config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE}, mm::address::StepByOne};
+use crate::{
+    config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
+    mm::address::StepByOne,
+};
 
 use super::{frame_alloc, PTEFlags, PageTableEntry, PhysPageNum};
 use lazy_static::lazy_static;
@@ -56,7 +59,7 @@ pub struct MemorySet {
 }
 
 impl MemorySet {
-    ///
+    /// 创建一个空的地址空间
     pub fn new_bare() -> Self {
         Self {
             page_table: PageTable::new(),
@@ -86,6 +89,15 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+
+    /// 释放逻辑段
+    pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
+        if let Some((idx, area)) = self.areas.iter_mut().enumerate()
+            .find(|(_, area)| area.vpn_range.get_start() == start_vpn) {
+                area.unmap(&mut self.page_table);
+                self.areas.remove(idx);
+            }
     }
 
     /// 映射跳板
@@ -165,6 +177,7 @@ impl MemorySet {
         );
         println!("mapping physical memory");
         // 将 ekernel 到物理内存结束的部分设置为可分配内存
+        // 将这部分恒等映射，可以保证这些页面能在后续用于分配，并能在内核使用 ppn 进行页面访问
         memory_set.push(
             MapArea::new(
                 (ekernel as usize).into(),
@@ -181,7 +194,7 @@ impl MemorySet {
     /// 根据 elf 文件解析出对应的地址空间
     /// 返回
     /// - 应用的地址空间
-    /// - 用户栈顶: 向下生长，最大尺寸为 USER_STACK_SIZE
+    /// - 用户栈顶: 向下生长，最大尺寸为 USER_STACK_SIZE。位于最高虚拟逻辑段顶部一页后面的空间。
     /// - 应用程序入口
     pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
         let mut memory_set = Self::new_bare();
@@ -261,6 +274,28 @@ impl MemorySet {
         )
     }
 
+    /// 从现成的用户地址空间复制一份新的。用于 fork.
+    /// 拷贝所有逻辑段（含trap_context/user_stack/数据段），并映射跳板
+    /// todo: 这里没有实现 COW?
+    pub fn from_existed_user(user_space: &Self) -> Self {
+        let mut memory_set = Self::new_bare();
+        // 跳板没有在逻辑段中，所以单独映射
+        memory_set.map_trampoline();
+        // copy data sections/trap_context/user_stack
+        for area in user_space.areas.iter() {
+            let new_area = MapArea::from_another(area);
+            memory_set.push(new_area, None);
+            // copy data
+            for vpn in area.vpn_range {
+                let src_ppn = user_space.translate(vpn).unwrap().ppn();
+                // 上面的 push 已完成了映射
+                let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
+                dst_ppn.get_bytes_array().copy_from_slice(src_ppn.get_bytes_array());
+            }
+        }
+        memory_set
+    }
+
     /// 启动地址空间（页表）
     pub fn activate(&self) {
         let satp = self.page_table.token();
@@ -270,6 +305,13 @@ impl MemorySet {
             // 刷新 TLB（快表） 缓存
             llvm_asm!("sfence.vma" :::: "volatile");
         }
+    }
+    
+
+    /// 回收数据页，不包含页表信息
+    pub fn recycle_data_pages(&mut self) {
+        // 删除列表会触发 drop trait，进而回收所有页面
+        self.areas.clear();
     }
 }
 
@@ -315,7 +357,12 @@ pub struct MapArea {
 
 impl Debug for MapArea {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("MapArea").field("vpn_range", &self.vpn_range).field("data_frame", &self.data_frame).field("map_type", &self.map_type).field("map_perm", &self.map_perm).finish()
+        f.debug_struct("MapArea")
+            .field("vpn_range", &self.vpn_range)
+            .field("data_frame", &self.data_frame)
+            .field("map_type", &self.map_type)
+            .field("map_perm", &self.map_perm)
+            .finish()
     }
 }
 
@@ -333,6 +380,16 @@ impl MapArea {
             data_frame: BTreeMap::new(),
             map_type,
             map_perm,
+        }
+    }
+
+    /// 从另一个逻辑段复制，但不含数据。复制后的逻辑段与原来拥有一样的虚拟地址范围。
+    pub fn from_another(other: &Self) -> Self {
+        Self {
+            vpn_range: VPNRange::new(other.vpn_range.get_start(), other.vpn_range.get_end()),
+            data_frame: BTreeMap::new(),
+            map_type: other.map_type,
+            map_perm: other.map_perm,
         }
     }
 
@@ -413,15 +470,27 @@ pub fn remap_test() {
     let mid_rodata: VirtAddr = ((srodata as usize + erodata as usize) / 2).into();
     let mid_data: VirtAddr = ((sdata as usize + edata as usize) / 2).into();
     assert_eq!(
-        kernel_space.page_table.translate(mid_text.floor()).unwrap().writable(),
+        kernel_space
+            .page_table
+            .translate(mid_text.floor())
+            .unwrap()
+            .writable(),
         false
     );
     assert_eq!(
-        kernel_space.page_table.translate(mid_rodata.floor()).unwrap().writable(),
+        kernel_space
+            .page_table
+            .translate(mid_rodata.floor())
+            .unwrap()
+            .writable(),
         false,
     );
     assert_eq!(
-        kernel_space.page_table.translate(mid_data.floor()).unwrap().executable(),
+        kernel_space
+            .page_table
+            .translate(mid_data.floor())
+            .unwrap()
+            .executable(),
         false,
     );
     println!("remap_test passed!");

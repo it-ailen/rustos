@@ -24,14 +24,23 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     ret
 }
 
+const SYSCALL_READ: usize = 63;
 const SYSCALL_WRITE: usize = 64;
 const SYSCALL_EXIT: usize = 93;
 const SYSCALL_YIELD: usize = 124;
 const SYSCALL_GET_TIME: usize = 169;
+const SYSCALL_GETPID: usize = 172;
+const SYSCALL_FORK: usize = 220;
+const SYSCALL_EXEC: usize = 221;
+const SYSCALL_WAITPID: usize = 260;
 
 pub fn sys_write(fd: usize, buffer: &[u8]) -> isize {
     // syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, 2])
     syscall(SYSCALL_WRITE, [fd, buffer.as_ptr() as usize, buffer.len()])
+}
+
+pub fn sys_read(fd: usize, buffer: &mut [u8]) -> isize {
+    syscall(SYSCALL_READ, [fd, buffer.as_ptr() as usize, buffer.len()])
 }
 
 pub fn sys_exit(xstate: i32) -> isize {
@@ -42,6 +51,31 @@ pub fn sys_yield() -> isize {
     syscall(SYSCALL_YIELD, [0, 0, 0])
 }
 
+/// 返回当前 ms 数。由于没有时钟对齐，这里只是机器 的系统开机时间
 pub fn sys_get_time() -> isize {
     syscall(SYSCALL_GET_TIME, [0, 0, 0])
+}
+
+pub fn sys_fork() -> isize {
+    syscall(SYSCALL_FORK, [0, 0, 0])
+}
+
+pub fn sys_getpid() -> isize {
+    syscall(SYSCALL_GETPID, [0, 0, 0])
+}
+
+pub fn sys_exec(path: &str) -> isize {
+    syscall(SYSCALL_EXEC, [path.as_ptr() as usize, 0, 0])
+}
+
+/// 等待子进程结束
+/// pid: -1 表示任意子进程结束；
+/// exit_code：进程退出码。
+/// 
+/// 返回值：
+/// -2 表示子进程存在但尚未结束。
+// 进程通过 exit 退出后，它所占用的资源不会立即回收。系统只是回收部分，并将进程标记为僵尸进程。
+// waitpid 可以触发回收，并等待直到进程完全退出。
+pub fn sys_waitpid(pid: isize, exit_code: *mut i32) -> isize {
+    syscall(SYSCALL_WAITPID, [pid as usize, exit_code as usize, 0])
 }

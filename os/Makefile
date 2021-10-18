@@ -45,5 +45,18 @@ ifeq ($(BOARD),qemu)
 		-device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA)
 endif
 
+debug:
+	qemu-system-riscv64 \
+		-machine virt \
+		-nographic \
+		-bios $(BOOTLOADER) \
+		-device loader,file=$(KERNEL_BIN),addr=$(KERNEL_ENTRY_PA) \
+		-S -s
 
-.PHONY: build run disasm clean kernel
+gdb:
+	RUST_GDB=riscv64-unknown-elf-gdb rust-gdb -iex 'target remote :1234' $(KERNEL_ELF)
+
+gdb_old:
+	riscv64-unknown-elf-gdb -iex 'target remote :1234' $(KERNEL_ELF)
+
+.PHONY: build run disasm clean kernel debug gdb
