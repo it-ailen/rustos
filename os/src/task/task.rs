@@ -34,7 +34,8 @@ pub enum TaskStatus {
 }
 
 pub struct TCBInner {
-    /// TaskContext 的指针, 处于任务 KernelStack 的顶部，创建 TCB 时赋值
+    /// TaskContext 的指针, 处于任务 KernelStack 的顶部，创建 TCB 时赋值。
+    /// 在 __switch 中被修改
     pub task_cx_ptr: usize,
     /// 任务状态
     pub task_status: TaskStatus,

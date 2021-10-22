@@ -73,6 +73,8 @@ impl Processor {
 
                 self.inner.borrow_mut().current = Some(task);
                 // 从 idle 控制流切换至目标任务
+                // 执行完 switch 后， self.idle_task_cx_ptr 的值是指向由 switch.S 从当前 run 的栈空间
+                // 分配到的 *TaskContext
                 unsafe { __switch(idle_task_cx_ptr2, next_task_cx_ptr2) }
             }
         }
@@ -112,6 +114,7 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 
 /// 切换至 idle 控制流并开启新一轮调试。
 /// 这里实际上是继续运行 Processor.run 中 __switch 后的位置
+/// 执行后，*switched_task_cx_ptr2 = *TaskContext as usize(*TaskContext 是从此进程栈空间分配的)
 pub fn schedule(switched_task_cx_ptr2: *const usize) {
     let idle_task_cx_ptr2 = PROCESSOR.get_idle_task_cx_ptr2();
     unsafe {

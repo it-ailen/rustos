@@ -64,6 +64,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     // we do not have to save task context
     // 由于上一任务已经退出，切换时就不需要再保存 taskContext 了。这里将其指定为0
     let _unused: usize = 0;
+    // 执行完后，_unused 的值为 *TaskContext 地址，然后我们后面不再使用它了
     schedule(&_unused as *const _);
 }
 
