@@ -39,6 +39,7 @@ mod task;
 mod timer;
 mod mm;
 mod layout;
+mod fs;
 
 
 // fn shutdown() -> ! {

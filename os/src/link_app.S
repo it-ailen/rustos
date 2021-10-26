@@ -3,7 +3,7 @@
     .section .data
     .global _num_app
 _num_app:
-    .quad 19
+    .quad 21
     .quad app_0_start
     .quad app_1_start
     .quad app_2_start
@@ -23,7 +23,9 @@ _num_app:
     .quad app_16_start
     .quad app_17_start
     .quad app_18_start
-    .quad app_18_end
+    .quad app_19_start
+    .quad app_20_start
+    .quad app_20_end
 
     .global _app_names
 _app_names:
@@ -41,6 +43,8 @@ _app_names:
     .string "hello_world"
     .string "initproc"
     .string "matrix"
+    .string "pipe_large_test"
+    .string "pipetest"
     .string "sleep"
     .string "sleep_simple"
     .string "stack_overflow"
@@ -156,7 +160,7 @@ app_12_end:
     .global app_13_start
     .global app_13_end
 app_13_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/sleep"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/pipe_large_test"
 app_13_end:
         
 
@@ -164,7 +168,7 @@ app_13_end:
     .global app_14_start
     .global app_14_end
 app_14_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/sleep_simple"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/pipetest"
 app_14_end:
         
 
@@ -172,7 +176,7 @@ app_14_end:
     .global app_15_start
     .global app_15_end
 app_15_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/stack_overflow"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/sleep"
 app_15_end:
         
 
@@ -180,7 +184,7 @@ app_15_end:
     .global app_16_start
     .global app_16_end
 app_16_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/user_shell"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/sleep_simple"
 app_16_end:
         
 
@@ -188,7 +192,7 @@ app_16_end:
     .global app_17_start
     .global app_17_end
 app_17_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/usertests"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/stack_overflow"
 app_17_end:
         
 
@@ -196,6 +200,22 @@ app_17_end:
     .global app_18_start
     .global app_18_end
 app_18_start:
-    .incbin "../user/target/riscv64gc-unknown-none-elf/release/yield"
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/user_shell"
 app_18_end:
+        
+
+    .section .data
+    .global app_19_start
+    .global app_19_end
+app_19_start:
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/usertests"
+app_19_end:
+        
+
+    .section .data
+    .global app_20_start
+    .global app_20_end
+app_20_start:
+    .incbin "../user/target/riscv64gc-unknown-none-elf/release/yield"
+app_20_end:
         

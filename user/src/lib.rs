@@ -125,3 +125,11 @@ pub fn exec(path: &str) -> isize {
 pub fn getpid() -> isize {
     sys_getpid()
 }
+
+pub fn pipe(pipe_fd: &mut [usize]) -> isize {
+    sys_pipe(pipe_fd)
+}
+
+pub fn close(fd: usize) -> isize {
+    sys_close(fd)
+}

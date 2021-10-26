@@ -68,6 +68,7 @@ pub fn exit_current_and_run_next(exit_code: i32) {
     schedule(&_unused as *const _);
 }
 
+/// *注意*: 这个函数会切换上下文，对持有锁的函数，调用这个函数需要考虑手动释放，避免死锁。
 pub fn suspend_current_and_run_next() {
     // 由于是暂停，所以必然有一个正在运行的任务
     let task = take_current_task().unwrap();

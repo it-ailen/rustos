@@ -1,3 +1,4 @@
+use alloc::vec;
 use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
@@ -5,6 +6,7 @@ use alloc::{
 use riscv::paging::PTE;
 use spin::{Mutex, MutexGuard};
 
+use crate::fs::{File, Stdin, Stdout};
 use crate::{
     config::{kernel_stack_position, TRAP_CONTEXT},
     mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
@@ -53,6 +55,15 @@ pub struct TCBInner {
     pub children: Vec<Arc<TCB>>,
     /// 退出码
     pub exit_code: i32,
+
+    // 资源相关
+    /// 文件描述符表，进程打开的文件的描述符列表。
+    //
+    // Vec：表为动态长度，即固定文件数限制
+    // Option: 可利用 None 标志文件描述符是否在使用
+    // Arc: 提供并发共享能力，可被多线程同时使用；内容放在堆上，可不在编译期确定大小
+    // dyn: 表示运行时多态，即在运行时才知道是什么类型
+    pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
 }
 
 impl TCBInner {
@@ -78,6 +89,16 @@ impl TCBInner {
 
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+
+    /// 在当前进程文件描述符表中分配一个空闲的文件描述符
+    pub fn alloc_fd(&mut self) -> usize {
+        if let Some(fd) = (0..self.fd_table.len()).find(|&fd| self.fd_table[fd].is_none()) {
+            fd
+        } else {
+            self.fd_table.push(None);
+            self.fd_table.len() - 1
+        }
     }
 }
 
@@ -142,6 +163,14 @@ impl TCB {
         let kernel_stack = KernelStack::new(&pid);
         let kernel_stack_top = kernel_stack.get_top();
         let task_cx_ptr = kernel_stack.push_on_top(TaskContext::goto_trap_return());
+        let mut new_fd_table: Vec<Option<Arc<dyn File + Send + Sync>>> = Vec::new();
+        for fd in parent_inner.fd_table.iter() {
+            if let Some(file) = fd {
+                new_fd_table.push(Some(file.clone()));
+            } else {
+                new_fd_table.push(None);
+            }
+        }
         let tcb = Arc::new(TCB {
             pid,
             kernel_stack,
@@ -154,6 +183,7 @@ impl TCB {
                 parent: Some(Arc::downgrade(self)),
                 children: Vec::new(),
                 exit_code: 0,
+                fd_table: new_fd_table,
             }),
         });
         parent_inner.children.push(tcb.clone());
@@ -189,6 +219,14 @@ impl TCB {
                 parent: None,
                 children: Vec::new(),
                 exit_code: 0,
+                fd_table: vec![
+                    // 标准输入 0
+                    Some(Arc::new(Stdin)),
+                    // 标准输出 1
+                    Some(Arc::new(Stdout)),
+                    // 错误输出 2
+                    Some(Arc::new(Stdout)),
+                ],
             }),
         };
         // 初始化用户空间的 TrapContext

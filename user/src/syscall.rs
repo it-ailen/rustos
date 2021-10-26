@@ -24,6 +24,8 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     ret
 }
 
+const SYSCALL_CLOSE: usize = 57;
+const SYSCALL_PIPE: usize = 59;
 const SYSCALL_READ: usize = 63;
 const SYSCALL_WRITE: usize = 64;
 const SYSCALL_EXIT: usize = 93;
@@ -71,11 +73,23 @@ pub fn sys_exec(path: &str) -> isize {
 /// 等待子进程结束
 /// pid: -1 表示任意子进程结束；
 /// exit_code：进程退出码。
-/// 
+///
 /// 返回值：
 /// -2 表示子进程存在但尚未结束。
 // 进程通过 exit 退出后，它所占用的资源不会立即回收。系统只是回收部分，并将进程标记为僵尸进程。
 // waitpid 可以触发回收，并等待直到进程完全退出。
 pub fn sys_waitpid(pid: isize, exit_code: *mut i32) -> isize {
     syscall(SYSCALL_WAITPID, [pid as usize, exit_code as usize, 0])
+}
+
+pub fn sys_pipe(pipe: &mut [usize]) -> isize {
+    syscall(SYSCALL_PIPE, [pipe.as_mut_ptr() as usize, 0, 0])
+}
+
+/// 功能：当前进程关闭一个文件。
+/// 参数：fd 表示要关闭的文件的文件描述符。
+/// 返回值：如果成功关闭则返回 0 ，否则返回 -1 。可能的出错原因：传入的文件描述符并不对应一个打开的文件。
+/// syscall ID：57
+pub fn sys_close(fd: usize) -> isize {
+    syscall(SYSCALL_CLOSE, [fd, 0, 0])
 }
