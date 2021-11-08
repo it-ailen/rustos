@@ -2,7 +2,6 @@ use alloc::{string::String, sync::Arc, vec::Vec};
 
 use crate::{
     fs::{open_file, File, OpenFlags},
-    loader::get_app_data_by_name,
     mm::{translated_ref, translated_refmut, translated_str},
     println,
     task::{

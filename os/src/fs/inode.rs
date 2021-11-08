@@ -4,7 +4,7 @@ use easy_fs::{EasyFileSystem, Inode};
 use lazy_static::*;
 use spin::Mutex;
 
-use crate::driver::BLOCK_DEVICE;
+use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 
 use super::File;

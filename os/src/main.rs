@@ -40,7 +40,7 @@ mod timer;
 mod mm;
 mod layout;
 mod fs;
-mod driver;
+mod drivers;
 
 
 // fn shutdown() -> ! {
@@ -100,13 +100,13 @@ pub fn rust_main() -> ! {
     println!("[kernel] mm initilized");
     println!("[kernel] remap test");
     mm::remap_test();
-    task::add_initproc();
     trap::init();
     println!("[kernel] trap init");
     trap::enable_timer_interrupt();
     println!("[kernel] timer interrupt enabled");
     timer::set_next_trigger();
-    loader::list_apps();
+    fs::list_apps();
+    task::add_initproc();
     println!("[kernel] set first trigger");
     task::run_tasks();
     panic!("Unreachable in rust_main!");
