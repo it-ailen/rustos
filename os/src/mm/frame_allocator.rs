@@ -118,7 +118,7 @@ pub fn frame_alloc() -> Option<FrameTracker> {
 }
 
 /// 回收页桢
-fn frame_dealloc(ppn: PhysPageNum) {
+pub fn frame_dealloc(ppn: PhysPageNum) {
     FRAME_ALLOCATOR.lock().dealloc(ppn);
 }
 

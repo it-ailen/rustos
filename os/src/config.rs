@@ -19,12 +19,10 @@ pub const KERNEL_HEAP_SIZE: usize = 0x20_0000;
 /// 物理内存上限，后面应该使用设备查询获取
 pub const MEMORY_END: usize = 0x80800000;
 
-
 /// 时钟频率，与硬件有关。
 // 这儿提供的是 qemu 的配置时钟，可用 cfg 编译开关指定。
 // #[cfg(feature = "board_qemu")]
 pub const CLOCK_FREQ: usize = 12500000;
-
 
 /// 返回内核栈区间，(bottom, top)
 pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
@@ -33,3 +31,10 @@ pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
     let bottom = top - KERNEL_STACK_SIZE;
     (bottom, top)
 }
+
+/// MMIO，memory mapped IO，即内存地址映射 IO，即将特定的外设通过固定的物理地址段来访问
+// #[cfg(feature = "board_qemu")]
+pub const MMIO: &[(usize, usize)] = &[
+    // 从 RV64 平台 Qemu 的 源码 中可以找到 VirtIO 总线的 MMIO 物理地址区间为从 0x10001000 开头的 4KiB
+    (0x10001000, 0x1000),
+];

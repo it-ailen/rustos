@@ -11,7 +11,7 @@ extern crate user_lib;
 fn main() -> i32 {
     if fork() == 0 {
         // rust 不会在字符串后插入 \0(因为 rust 的字符串是用胖指针表示的)
-        exec("user_shell\0"); 
+        exec("user_shell\0", &[0 as *const u8]); 
     } else {
         loop {
             let mut exit_code: i32 = 0;

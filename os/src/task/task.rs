@@ -1,3 +1,4 @@
+use alloc::string::String;
 use alloc::vec;
 use alloc::{
     sync::{Arc, Weak},
@@ -7,6 +8,7 @@ use riscv::paging::PTE;
 use spin::{Mutex, MutexGuard};
 
 use crate::fs::{File, Stdin, Stdout};
+use crate::mm::translated_refmut;
 use crate::{
     config::{kernel_stack_position, TRAP_CONTEXT},
     mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE},
@@ -123,25 +125,57 @@ impl TCB {
     }
 
     /// 加载一个 elf 到当前执行进程上下文
-    pub fn exec(&self, elf_data: &[u8]) {
-        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+    pub fn exec(&self, elf_data: &[u8], args: Vec<String>) {
+        let (memory_set, mut user_sp, entry_point) = MemorySet::from_elf(elf_data);
         let trap_cx_ppn = memory_set
             .translate(VirtAddr::from(TRAP_CONTEXT).into())
             .unwrap()
             .ppn();
+        // 将参数的指针放到用户栈上
+        // 参考 https://rcore-os.github.io/rCore-Tutorial-Book-v3/chapter7/4cmdargs-and-redirection.html#sys-exec
+        let usize_len = core::mem::size_of::<usize>();
+        // 将 args 存到用户栈的顶部，以0结束；所以这里分配比实际大小多一个空间，用于放0
+        user_sp -= (args.len() + 1) * usize_len;
+        let argv_base = user_sp;
+        let mut argv: Vec<_> = (0..=args.len())
+            .map(|arg| {
+                translated_refmut(
+                    memory_set.token(),
+                    (argv_base + arg * usize_len) as *mut usize,
+                )
+            })
+            .collect();
+        *argv[args.len()] = 0; // 以0表示参数结束
+        for i in 0..args.len() {
+            // 将参数数据复制到 user_sp 参数后的部分
+            user_sp -= args[i].len() + 1;
+            *argv[i] = user_sp; // 参数指针位置，即入参的参数、数据都在栈上
+            let mut p = user_sp;
+            for c in args[i].as_bytes() {
+                *translated_refmut(memory_set.token(), p as *mut u8) = *c;
+                p += 1;
+            }
+            // 以 \0 结尾
+            *translated_refmut(memory_set.token(), p as *mut u8) = 0;
+        }
+        // make the user_sp aligned to 8B for k210 platform
+        // 按 4字节对齐 
+        user_sp -= user_sp % core::mem::size_of::<usize>();
         // 继续持有当前 PCB
         let mut inner = self.acquire_inner_lock();
         inner.memory_set = memory_set;
         inner.trap_cx_ppn = trap_cx_ppn;
-        // 重新初始化 trapCX
-        let trap_cx = inner.get_trap_cx();
-        *trap_cx = TrapContext::app_init_context(
+
+        let mut trap_cx = TrapContext::app_init_context(
             entry_point,
             user_sp,
             KERNEL_SPACE.lock().token(),
             self.kernel_stack.get_top(),
             trap_handler as usize,
         );
+        trap_cx.x[10] = args.len();
+        trap_cx.x[11] = argv_base;
+        *inner.get_trap_cx() = trap_cx;
     }
 
     /// 从当前任务 fork 一个新任务。

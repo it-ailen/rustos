@@ -43,7 +43,7 @@ _num_app:
     writeln!(f, r#"
     .global _app_names
 _app_names:"#)?;
-    writeln!(f, r#"    # 链接器会自动在每个字符串的结尾加入分隔符 \0"#)?;
+    writeln!(f, r#"    # 链接器会自动在每个字符串的结尾zZZZZ加入分隔符 \0"#)?;
     for app in apps.iter() {
         writeln!(f, r#"    .string "{}""#, app)?;
     }

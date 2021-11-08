@@ -5,6 +5,7 @@ use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use super::page_table::PageTableEntry;
 
 /// 物理页号，有效位共 44 位
+#[repr(C)]
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysPageNum(pub usize);
 
@@ -22,7 +23,6 @@ pub struct VirtPageNum(pub usize);
 /// 虚拟地址
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtAddr(pub usize);
-
 
 impl Debug for VirtAddr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -103,9 +103,12 @@ impl PhysAddr {
 
     /// 获取可变指针
     pub fn get_mut<T>(&self) -> &'static mut T {
-        unsafe {
-            (self.0 as *mut T).as_mut().unwrap()
-        }
+        unsafe { (self.0 as *mut T).as_mut().unwrap() }
+    }
+
+    /// 获取不变指针
+    pub fn get_ref<T>(&self) -> &'static T {
+        unsafe { (self.0 as *const T).as_ref().unwrap() }
     }
 }
 
@@ -128,6 +131,14 @@ impl PhysPageNum {
         unsafe { (pa.0 as *mut T).as_mut().unwrap() }
     }
 }
+
+
+impl StepByOne for PhysPageNum {
+    fn step(&mut self) {
+        self.0 += 1;
+    }
+}
+
 
 impl From<usize> for PhysPageNum {
     fn from(v: usize) -> Self {
@@ -274,7 +285,10 @@ where
 
 impl Debug for SimpleRange<VirtPageNum> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SimpleRange").field("l", &self.l).field("r", &self.r).finish()
+        f.debug_struct("SimpleRange")
+            .field("l", &self.l)
+            .field("r", &self.r)
+            .finish()
     }
 }
 

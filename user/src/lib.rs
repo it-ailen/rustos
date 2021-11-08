@@ -4,6 +4,12 @@
 #![feature(panic_info_message)] // 使用 panic message，有这个 panic_handler 才能起作用
 #![feature(alloc_error_handler)]
 
+#[macro_use]
+extern crate bitflags;
+
+extern crate alloc;
+
+use alloc::vec::Vec;
 use buddy_system_allocator::LockedHeap;
 use syscall::*;
 
@@ -13,7 +19,7 @@ const USER_HEAP_SIZE: usize = 16384;
 /// 使用编译好的数组作为用户空间的堆
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];
 
-/// 全局分配器，内核和用户空间各一个
+/// 全局分配器，内核和用户空间各一个。有了这个分配器，内核才可以使用动态数据类型
 #[global_allocator]
 static HEAP: LockedHeap = LockedHeap::empty();
 
@@ -30,7 +36,7 @@ mod lang_items;
 
 #[no_mangle] // 不允许编译器混淆
 #[link_section = ".text.entry"] // 告知编译器将此函数放到 .text.entry 节，成为用户程序入口
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(argc: usize, argv: usize) -> ! {
     // 操作系统负责初始化用户程序的 .bss 区间
     // clear_bss(); // 系统还不具有清零 .bss 的能力，需要应用程序自己做
     unsafe {
@@ -38,7 +44,22 @@ pub extern "C" fn _start() -> ! {
             .init(HEAP_SPACE.as_ptr() as usize, USER_HEAP_SIZE);
     }
     println!("user lib run now!!!");
-    exit(main()); // 调用用户库的 exit 方法
+    let mut v: Vec<&'static str> = Vec::new();
+    for i in 0..argc {
+        let str_start =
+            unsafe { ((argv + i * core::mem::size_of::<usize>()) as *const usize).read_volatile() };
+        let len = (0usize..)
+            .find(|i| unsafe {
+                // 字符串以 \0 结尾
+                ((str_start + *i) as *const u8).read_volatile() == 0
+            })
+            .unwrap();
+        v.push(
+            core::str::from_utf8(unsafe { core::slice::from_raw_parts(str_start as _, len) })
+                .unwrap(),
+        )
+    }
+    exit(main(argc, v.as_slice())); // 调用用户库的 exit 方法
     panic!("unreachable after sys_exit!");
 }
 
@@ -46,7 +67,7 @@ pub extern "C" fn _start() -> ! {
 // 类似于 default，只是为了让 lib 在没有 bin 的时候也能编译通过
 #[linkage = "weak"]
 #[no_mangle]
-fn main() -> i32 {
+fn main(_argc: usize, _argv: &[&str]) -> i32 {
     panic!("Cannot find main!");
 }
 
@@ -74,6 +95,10 @@ pub fn yield_() -> isize {
 
 pub fn get_time() -> isize {
     sys_get_time()
+}
+
+pub fn dup(fd: usize) -> isize {
+    sys_dup(fd)
 }
 
 /// 等待任意子进程退出
@@ -118,8 +143,8 @@ pub fn read(fd: usize, buf: &mut [u8]) -> isize {
     sys_read(fd, buf)
 }
 
-pub fn exec(path: &str) -> isize {
-    sys_exec(path)
+pub fn exec(path: &str, args: &[*const u8]) -> isize {
+    sys_exec(path, args)
 }
 
 pub fn getpid() -> isize {
@@ -132,4 +157,18 @@ pub fn pipe(pipe_fd: &mut [usize]) -> isize {
 
 pub fn close(fd: usize) -> isize {
     sys_close(fd)
+}
+
+bitflags! {
+    pub struct OpenFlags: u32 {
+        const RDONLY = 0;
+        const WRONLY = 1 << 0;
+        const RDWR = 1 << 1;
+        const CREATE = 1 << 9;
+        const TRUNC = 1 << 10;
+    }
+}
+
+pub fn open(path: &str, flags: OpenFlags) -> isize {
+    sys_open(path, flags.bits)
 }

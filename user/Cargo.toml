@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 buddy_system_allocator = "0.6" # 现成的伙伴算法库
+bitflags = "1.2.1" # 位操作

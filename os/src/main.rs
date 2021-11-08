@@ -40,6 +40,7 @@ mod timer;
 mod mm;
 mod layout;
 mod fs;
+mod driver;
 
 
 // fn shutdown() -> ! {

@@ -5,7 +5,7 @@ use riscv::register::satp;
 use spin::Mutex;
 
 use crate::{
-    config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
+    config::{MEMORY_END, MMIO, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE},
     mm::address::StepByOne,
 };
 
@@ -93,11 +93,15 @@ impl MemorySet {
 
     /// 释放逻辑段
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
-        if let Some((idx, area)) = self.areas.iter_mut().enumerate()
-            .find(|(_, area)| area.vpn_range.get_start() == start_vpn) {
-                area.unmap(&mut self.page_table);
-                self.areas.remove(idx);
-            }
+        if let Some((idx, area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| area.vpn_range.get_start() == start_vpn)
+        {
+            area.unmap(&mut self.page_table);
+            self.areas.remove(idx);
+        }
     }
 
     /// 映射跳板
@@ -187,6 +191,18 @@ impl MemorySet {
             ),
             None,
         );
+        println!("mapping MMIO");
+        for pair in MMIO {
+            memory_set.push(
+                MapArea::new(
+                    (*pair).0.into(),
+                    ((*pair).0 + (*pair).1).into(),
+                    MapType::Identical,
+                    MapPermission::R | MapPermission::W,
+                ),
+                None,
+            );
+        }
         println!("Kernel set done");
         memory_set
     }
@@ -290,7 +306,9 @@ impl MemorySet {
                 let src_ppn = user_space.translate(vpn).unwrap().ppn();
                 // 上面的 push 已完成了映射
                 let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
-                dst_ppn.get_bytes_array().copy_from_slice(src_ppn.get_bytes_array());
+                dst_ppn
+                    .get_bytes_array()
+                    .copy_from_slice(src_ppn.get_bytes_array());
             }
         }
         memory_set
@@ -306,7 +324,6 @@ impl MemorySet {
             llvm_asm!("sfence.vma" :::: "volatile");
         }
     }
-    
 
     /// 回收数据页，不包含页表信息
     pub fn recycle_data_pages(&mut self) {
@@ -461,6 +478,10 @@ impl MapArea {
             self.unmap_one(page_table, vpn);
         }
     }
+}
+
+pub fn kernel_token() -> usize {
+    KERNEL_SPACE.lock().token()
 }
 
 #[allow(unused)]
